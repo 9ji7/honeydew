@@ -84,6 +84,7 @@ pub fn effect_info(id: u16) -> Option<EffectInfo> {
         14 => ("Phaser", 10),
         15 => ("Stereoizer", 7),
         16 => ("Trance Delay", 7),
+        17 => ("Ring Modulator", 6),
         18 => ("Tape Delay", 5),
         20 => ("Leveller", 3),
         24 => ("Tuner", 1),
@@ -381,6 +382,10 @@ impl AudioEffect {
             16 => (
                 vec![1.0, 0.775, 0.4, 1.0, 0.5, 0.0, 0.5],
                 Processor::TranceDelay(TranceDelayState::default()),
+            ),
+            17 => (
+                vec![1.0, 0.5, 1.0, 0.0, 0.5, 0.0],
+                Processor::RingModulator(RingModulatorState::default()),
             ),
             18 => (
                 vec![1.0, 0.6, 0.6, 0.5, 0.4],
@@ -931,6 +936,7 @@ enum Processor {
     TapeDelay(TapeDelayState),
     WowFlutter(WowFlutterState),
     TranceDelay(TranceDelayState),
+    RingModulator(RingModulatorState),
     Reverb(ReverbState),
     MultiFx(Box<MultiFxState>),
     Multiband(Box<MultibandState>),
@@ -971,6 +977,7 @@ impl Processor {
             Self::TapeDelay(state) => state.refresh(params, sample_rate),
             Self::WowFlutter(state) => state.refresh(params, sample_rate),
             Self::TranceDelay(state) => state.refresh(params, sample_rate),
+            Self::RingModulator(state) => state.refresh(params, sample_rate),
             Self::Reverb(state) => state.refresh(params, sample_rate),
             Self::MultiFx(state) => state.refresh(params.try_into().unwrap(), sample_rate),
             Self::Multiband(state) => state.refresh(params, sample_rate),
@@ -1056,6 +1063,7 @@ impl Processor {
             Self::TapeDelay(state) => state.process_frame(l, r),
             Self::WowFlutter(state) => state.process_frame(l, r),
             Self::TranceDelay(state) => state.process_frame(l, r),
+            Self::RingModulator(state) => state.process_frame(l, r),
             Self::Reverb(state) => state.process_frame(l, r),
             Self::MultiFx(state) => state.process_frame(l, r).unwrap(),
             Self::Multiband(state) => state.process_frame(l, r),
@@ -1118,6 +1126,7 @@ impl Processor {
             Self::TapeDelay(state) => state.reset(),
             Self::WowFlutter(state) => state.reset(),
             Self::TranceDelay(state) => state.reset(),
+            Self::RingModulator(state) => state.reset(),
             Self::Reverb(state) => state.reset(),
             Self::MultiFx(state) => state.reset(),
             Self::Multiband(state) => state.reset(),
@@ -2634,6 +2643,84 @@ fn simple_lfo(shape: u8, phase: f64) -> f32 {
             }
         }
         _ => (phase * std::f64::consts::TAU).sin() as f32,
+    }
+}
+
+/// Ring Modulator: multiplies the input signal by a carrier oscillator.
+/// Creates metallic, bell-like tones by generating sum/difference frequencies.
+#[derive(Default)]
+struct RingModulatorState {
+    phase: f64,
+    frequency_hz: f32,
+    depth: f32,
+    waveform: u8,
+    mix: f32,
+    stereo_spread_rad: f32,
+    sample_rate: f32,
+}
+
+impl RingModulatorState {
+    fn refresh(&mut self, params: &[f32], sample_rate: f32) {
+        // params[1] = Frequency (20 Hz .. 20 kHz, exponential)
+        // params[2] = Depth (0..1)
+        // params[3] = Waveform (0=Sine, 1=Triangle, 2=Square, 3=Saw)
+        // params[4] = Mix (0..1)
+        // params[5] = Stereo Spread (-180° .. +180°)
+        self.frequency_hz = 20.0_f32 * 1000.0_f32.powf(params[1]);
+        self.depth = params[2];
+        self.waveform = ((params[3] * 3.0).round() as u8).min(3);
+        self.mix = params[4];
+        self.stereo_spread_rad = params[5].to_radians();
+        self.sample_rate = sample_rate;
+    }
+
+    fn process_frame(&mut self, l: f32, r: f32) -> (f32, f32) {
+        // Generate carrier waves for L and R with stereo phase offset
+        let carrier_l = self.carrier_wave(self.phase);
+        let carrier_r = self.carrier_wave((self.phase + self.stereo_spread_rad / std::f64::consts::TAU).fract());
+
+        // Advance phase
+        let increment = self.frequency_hz as f64 / self.sample_rate as f64;
+        self.phase = (self.phase + increment).fract();
+
+        // Ring modulation: input * (1 - depth + depth * carrier)
+        // This gives dry signal at depth=0, full ring mod at depth=1
+        let mod_l = 1.0 - self.depth + self.depth * carrier_l;
+        let mod_r = 1.0 - self.depth + self.depth * carrier_r;
+
+        let wet_l = l * mod_l;
+        let wet_r = r * mod_r;
+
+        // Mix dry/wet
+        (
+            l + self.mix * (wet_l - l),
+            r + self.mix * (wet_r - r),
+        )
+    }
+
+    fn reset(&mut self) {
+        self.phase = 0.0;
+    }
+
+    fn carrier_wave(&self, phase: f64) -> f32 {
+        match self.waveform {
+            1 => {
+                // Triangle: -1 to 1
+                2.0 * (2.0 * phase - 1.0).abs() as f32 - 1.0
+            }
+            2 => {
+                // Square: -1 or 1
+                if phase < 0.5 { -1.0 } else { 1.0 }
+            }
+            3 => {
+                // Saw: -1 to 1
+                2.0 * phase as f32 - 1.0
+            }
+            _ => {
+                // Sine: -1 to 1
+                (phase * std::f64::consts::TAU).sin() as f32
+            }
+        }
     }
 }
 

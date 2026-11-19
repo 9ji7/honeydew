@@ -356,6 +356,33 @@ const TRANCE_DELAY: &[P] = &[
     P::plain("", 0.5),
 ];
 
+// ---- 17 Ring Modulator ----
+
+/// Carrier frequency: 20·2000^v Hz (20 Hz … 20 kHz).
+const RING_FREQ: Display = Display::Freq {
+    min: 20.0,
+    max: 20000.0,
+    hz_decimals: 1,
+    khz_decimals: 2,
+};
+/// Unipolar 0…100% for mix/depth.
+const RING_PERCENT: Display = Display::linear(0.0, 100.0, 0, " %");
+
+const RING_MODULATOR: &[P] = &[
+    P::ENABLE,                                                    // 0
+    P::cont("Frequency", 0.5, RING_FREQ),                         // 1
+    P::cont("Depth", 1.0, RING_PERCENT),                          // 2
+    P::menu_by(                                                   // 3
+        "Waveform",
+        0.0,
+        &["Sine", "Triangle", "Square", "Saw"],
+        trunc_index::<3>,
+    ),
+    P::cont("Mix", 0.5, RING_PERCENT),                            // 4
+    // Stereo offset: ±180° phase shift between L/R carriers.
+    P::cont("Stereo Spread", 0.0, Display::linear(-180.0, 180.0, 1, "°")), // 5
+];
+
 // ---- 18 Tape Delay ----
 
 const TAPE_DELAY: &[P] = &[
@@ -427,6 +454,7 @@ pub static MODULES: &[ModuleSpec] = &[
         TRANCE_DELAY,
         TRANCE_TIMES,
     ),
+    ModuleSpec::effect(17, "Ring Modulator", "Ring Modulator", false, RING_MODULATOR, &[]),
     ModuleSpec::effect(18, "Tape Delay", "Tape Delay", false, TAPE_DELAY, &[]),
     ModuleSpec::effect(20, "Leveller", "Leveller", false, LEVELLER, &[]),
 ];

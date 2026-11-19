@@ -88,6 +88,28 @@ pub(super) const BANK: &[Preset] = &[
             ("Post Gain", 0.425),
         ],
     ),
+    // Deep sine-sub with a Saw an octave up, slow filter opening, long release: a round house/sub bass.
+    gm(
+        "Bass",
+        "Deep Round",
+        &[(A, 18.0), (B, 16.0)],
+        &[
+            ("Osc B Pitch", 0.76042),
+            ("Osc B Mix", 0.45),
+            ("Filter Kind", 0.75),
+            ("Cutoff", 0.25),
+            ("Resonance", 0.05),
+            ("Filter Attack", 0.3),
+            ("Filter Decay", 0.9),
+            ("Filter Contour", 0.95),
+            ("Level Attack", 0.05),
+            ("Level Decay", 0.7),
+            ("Level Sustain", 0.8),
+            ("Level Release", 0.85),
+            ("Single Voice", 1.0),
+            ("Post Gain", 0.5),
+        ],
+    ),
     // Sine frequency-modulated by a Sine 17 st (and a touch) up, the index decaying, through the reverb: a glassy bell.
     gm(
         "Bells",
