@@ -2677,7 +2677,7 @@ impl RingModulatorState {
     fn process_frame(&mut self, l: f32, r: f32) -> (f32, f32) {
         // Generate carrier waves for L and R with stereo phase offset
         let carrier_l = self.carrier_wave(self.phase);
-        let carrier_r = self.carrier_wave((self.phase + self.stereo_spread_rad / std::f64::consts::TAU).fract());
+        let carrier_r = self.carrier_wave((self.phase + self.stereo_spread_rad as f64 / std::f64::consts::TAU).fract());
 
         // Advance phase
         let increment = self.frequency_hz as f64 / self.sample_rate as f64;
